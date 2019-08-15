@@ -1,0 +1,53 @@
+node {
+    env.service="intelligenceZC-service"
+    env.web="intelligenceZC-web"
+    env.common="intelligenceZC-common"
+    env.DBConfig="intelligenceZC-DBConfig"
+   stage('Preparation') {
+       dir(path:"/usr/local/src/IntelligenceZC"){
+           sh 'git pull'
+       }
+       sh 'echo ${WORKSPACE}'
+       sh 'rm -rf ${WORKSPACE}/*'
+       sh 'cp -r /usr/local/src/IntelligenceZC/${service} ${WORKSPACE}/${service}'
+       sh 'cp -r /usr/local/src/IntelligenceZC/${web} ${WORKSPACE}/${web}'
+       sh 'cp -r /usr/local/src/IntelligenceZC/${common} ${WORKSPACE}/${common}'
+       sh 'cp -r /usr/local/src/IntelligenceZC/${DBConfig} ${WORKSPACE}/${DBConfig}'
+    //   git branch: 'master', credentialsId: 'GitHubAccess', url: 'http://gitlab.gdcattsoft.com:7111/yangjiahui/test.git'
+    //   git 'http://gitlab.gdcattsoft.com:7111/yangjiahui/test.git'
+   }
+
+   stage('Maven package') {
+       dir(path: "${common}") {
+           sh 'mvn install'
+       }
+        dir(path: "${DBConfig}") {
+            sh 'mvn install'
+       }
+       dir(path: "${service}") {
+           sh 'mvn package'
+           sh 'mv target/intelligenceZC-*.jar devops/it-devops'
+           dir(path: "devops/it-devops"){
+                sh "docker build -t hub.catt.com/catt/intelligence-service:latest -t hub.catt.com/catt/intelligence-service:${BUILD_NUMBER} ."
+                sh "docker push  hub.catt.com/catt/intelligence-service:${BUILD_NUMBER}"
+                sh "docker push  hub.catt.com/catt/intelligence-service:latest"
+           }
+
+       }
+
+
+       dir(path: "${web}") {
+           sh 'npm install && npm run build'
+           sh 'mvn package'
+           sh 'mv target/intelligenceZC-*.jar devops/it-devops'
+           sh 'mv static devops/it-devops'
+           sh 'mvn package'
+            dir(path: "devops/it-devops"){
+                sh "docker build  -t hub.catt.com/catt/intelligence-web:latest -t hub.catt.com/catt/intelligence-web:${BUILD_NUMBER} ."
+                sh "docker push  hub.catt.com/catt/intelligence-web:${BUILD_NUMBER}"
+                sh "docker push  hub.catt.com/catt/intelligence-web:latest"
+           }
+       }
+
+   }
+}
